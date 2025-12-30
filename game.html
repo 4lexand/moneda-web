@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Midnight Runner - gn</title>
+    <link rel="icon" href="favicon.png" type="image/png">
+    
+    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #000000;
+            color: #ffffff;
+            font-family: 'Times New Roman', serif;
+            overflow: hidden;
+            user-select: none;
+            touch-action: none; 
+            height: 100vh;
+            width: 100vw;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: radial-gradient(circle, rgba(0,0,0,0) 20%, rgba(0,0,0,0.6) 100%);
+        }
+
+        canvas {
+            display: block;
+            background-color: transparent; 
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 0;
+        }
+
+        /* --- UI LAYER --- */
+        .ui-layer {
+            position: absolute;
+            top: 40px;
+            left: 40px;
+            font-size: 26px;
+            font-weight: bold;
+            z-index: 5;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+            display: none;
+        }
+        .high-score {
+            position: absolute;
+            top: 75px;
+            left: 40px;
+            font-size: 16px;
+            color: #aaa;
+            z-index: 5;
+            display: none;
+        }
+        .pause-btn {
+            position: absolute;
+            top: 40px;
+            right: 40px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: white;
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            font-size: 14px;
+            cursor: pointer;
+            z-index: 20;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(4px);
+        }
+
+        /* --- PANTALLA DE WALLET (GATING) --- */
+        #wallet-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #000000;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            transition: opacity 1s ease;
+        }
+
+        .wallet-content {
+            text-align: center;
+            max-width: 500px;
+            padding: 40px;
+        }
+
+        .wallet-logo { font-size: 100px; font-weight: bold; letter-spacing: -5px; margin-bottom: 20px; }
+        .wallet-msg { font-size: 18px; color: #888; margin-bottom: 40px; line-height: 1.5; }
+
+        .connect-btn {
+            background: white;
+            color: black;
+            border: none;
+            padding: 15px 40px;
+            font-family: 'Times New Roman', serif;
+            font-size: 20px;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            transition: 0.3s;
+            box-shadow: 0 0 20px rgba(255,255,255,0.2);
+        }
+        .connect-btn:hover { transform: scale(1.05); box-shadow: 0 0 40px rgba(255,255,255,0.5); }
+
+        .overlay-screen {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            display: none;
+            background-color: rgba(10, 10, 10, 0.85);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            padding: 60px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            width: 80%; max-width: 450px;
+            z-index: 30;
+            animation: fadeIn 0.5s ease;
+        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .action-btn {
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            color: white; padding: 15px 50px;
+            font-family: 'Times New Roman', serif; font-size: 18px;
+            cursor: pointer; transition: all 0.3s ease;
+            text-transform: uppercase; letter-spacing: 2px;
+        }
+        .action-btn:hover { background: white; color: black; box-shadow: 0 0 25px rgba(255, 255, 255, 0.6); }
+
+        h1 { margin: 0 0 15px 0; font-size: 48px; letter-spacing: -2px; }
+        p { font-size: 18px; color: #ccc; margin-bottom: 40px; font-style: italic; }
+    </style>
+</head>
+<body>
+
+    <div id="wallet-screen">
+        <div class="wallet-content">
+            <div class="wallet-logo">gn</div>
+            <div class="wallet-msg" id="wallet-status">
+                Hold $GN to enter the night.<br>
+                Connect your Solana wallet to play.
+            </div>
+            <button class="connect-btn" onclick="connectWallet()">Connect Wallet</button>
+            <br><br>
+            <a href="index.html" style="color:#444; text-decoration:none; font-size:14px;">← Back Home</a>
+        </div>
+    </div>
+
+    <div class="ui-layer" id="ui-layer">Score: <span id="score">0</span></div>
+    <div class="high-score" id="high-score">Best: <span id="bestScore">0</span></div>
+    <button class="pause-btn" id="pauseBtn" onclick="togglePause()">||</button>
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="game-over-screen" class="overlay-screen">
+            <h1>GAME OVER</h1>
+            <p>The night has ended.</p>
+            <div style="font-size: 24px; margin-bottom: 40px;">Score: <span id="finalScore">0</span></div>
+            <button class="action-btn" onclick="resetGame()">Try Again</button>
+            <br><br>
+            <a href="index.html" style="color: #666; text-decoration: none;">← EXIT</a>
+        </div>
+
+        <div id="pause-screen" class="overlay-screen">
+            <h1>PAUSED</h1>
+            <button class="action-btn" onclick="togglePause()">Resume</button>
+        </div>
+    </div>
+
+    <script>
+        // --- CONFIGURACIÓN DEL TOKEN ---
+        // PEGAR AQUÍ LA DIRECCIÓN DE TU TOKEN CUANDO LO TENGAS
+        const TOKEN_MINT_ADDRESS = ""; 
+        const REQUIRED_BALANCE = 0; 
+
+        const walletScreen = document.getElementById('wallet-screen');
+        const walletStatus = document.getElementById('wallet-status');
+        const uiLayer = document.getElementById('ui-layer');
+        const highScoreLayer = document.getElementById('high-score');
+        const pauseBtn = document.getElementById('pauseBtn');
+
+        // --- LÓGICA DE CONEXIÓN MEJORADA (UNIVERSAL) ---
+        async function connectWallet() {
+            let provider = null;
+
+            // 1. Detectar Phantom (Forma moderna)
+            if (window.phantom?.solana?.isPhantom) {
+                provider = window.phantom.solana;
+            }
+            // 2. Detectar Solflare
+            else if (window.solflare?.isSolflare) {
+                provider = window.solflare;
+            }
+            // 3. Detectar Inyección Genérica (Cualquier otra wallet standard)
+            else if (window.solana) {
+                provider = window.solana;
+            }
+
+            if (provider) {
+                try {
+                    walletStatus.innerHTML = "Requesting connection...";
+                    
+                    // Solicitar conexión a la extensión
+                    const resp = await provider.connect();
+                    const publicKey = resp.publicKey.toString();
+                    
+                    console.log("Connected to:", publicKey);
+                    walletStatus.innerHTML = "Verifying holdings...";
+                    
+                    // Verificar balance
+                    const hasAccess = await checkTokenBalance(publicKey);
+
+                    if (hasAccess) {
+                        walletStatus.innerHTML = "Access Granted.";
+                        walletScreen.style.opacity = '0';
+                        setTimeout(() => {
+                            walletScreen.style.display = 'none';
+                            startGameplay(); 
+                        }, 1000);
+                    } else {
+                        walletStatus.innerHTML = `<span style="color:#ff4444">Access Denied.</span><br>You need $GN to play.<br><br><a href="#" style="color:white;">Buy now</a>`;
+                    }
+
+                } catch (err) {
+                    console.error("Connection Error:", err);
+                    walletStatus.innerHTML = "Connection cancelled.";
+                }
+            } else {
+                // Solo si NO encuentra ninguna extensión instalada
+                alert("Wallet not found! Please install Phantom or Solflare extension.");
+                walletStatus.innerHTML = "No Solana wallet detected.<br>Please install Phantom or Solflare.";
+            }
+        }
+
+        async function checkTokenBalance(walletAddress) {
+            // MODO PRUEBA: Si no hay dirección de token configurada, deja pasar a todos
+            if (TOKEN_MINT_ADDRESS === "") return true;
+
+            try {
+                // Conexión a la red principal de Solana
+                const connection = new solanaWeb3.Connection(solanaWeb3.clusterApiUrl('mainnet-beta'));
+                const wallet = new solanaWeb3.PublicKey(walletAddress);
+                const tokenMint = new solanaWeb3.PublicKey(TOKEN_MINT_ADDRESS);
+                
+                // Buscar cuentas de token
+                const response = await connection.getParsedTokenAccountsByOwner(wallet, { mint: tokenMint });
+                
+                if (response.value.length > 0) {
+                    const balance = response.value[0].account.data.parsed.info.tokenAmount.uiAmount;
+                    console.log("Token Balance:", balance);
+                    return balance >= REQUIRED_BALANCE;
+                }
+                return false;
+            } catch (e) {
+                console.log("Error checking balance", e);
+                // Si falla la red (rate limit), dejamos pasar en modo duda o bloqueamos (aquí bloqueamos por seguridad)
+                return false; 
+            }
+        }
+
+        // --- MOTOR DEL JUEGO ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+        const bestScoreEl = document.getElementById('bestScore');
+        const finalScoreEl = document.getElementById('finalScore');
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const pauseScreen = document.getElementById('pause-screen');
+
+        let highScore = localStorage.getItem('gnHighScore') || 0;
+        bestScoreEl.innerText = highScore;
+
+        const playerImg = new Image(); playerImg.src = 'avatar.png'; 
+        let imageLoaded = false; playerImg.onload = () => { imageLoaded = true; };
+
+        function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+        resizeCanvas(); window.addEventListener('resize', resizeCanvas);
+
+        let gameActive = false;
+        let isPaused = false;
+        let score = 0;
+        let frame = 0;
+        let gameSpeed = 6;
+        let groundHeight = 100;
+
+        const player = { x: 100, y: 0, width: 50, height: 50, dy: 0, jumpPower: -14, gravity: 0.7, grounded: false,
+            draw: function() {
+                if (imageLoaded) ctx.drawImage(playerImg, this.x, this.y, this.width, this.height);
+                else { ctx.fillStyle = "#fff"; ctx.fillRect(this.x, this.y, this.width, this.height); }
+            },
+            update: function() {
+                if ((keys['Space'] || keys['Click']) && this.grounded) { this.dy = this.jumpPower; this.grounded = false; }
+                this.y += this.dy; this.dy += this.gravity;
+                let groundY = canvas.height - groundHeight - this.height;
+                if (this.y > groundY) { this.y = groundY; this.dy = 0; this.grounded = true; }
+            }
+        };
+
+        const obstacles = [];
+        const obstacleTypes = [ { w: 40, h: 40, yOffset: 0 }, { w: 25, h: 70, yOffset: 0 }, { w: 50, h: 25, yOffset: 70 } ];
+
+        class Obstacle {
+            constructor() {
+                const variant = obstacleTypes[Math.floor(Math.random() * obstacleTypes.length)];
+                this.w = variant.w; this.h = variant.h; this.x = canvas.width;
+                this.y = canvas.height - groundHeight - this.h - variant.yOffset;
+                this.markedForDeletion = false;
+            }
+            update() {
+                this.x -= gameSpeed;
+                if (this.x < -100) this.markedForDeletion = true;
+                if (player.x < this.x + this.w - 10 && player.x + player.width - 10 > this.x &&
+                    player.y < this.y + this.h - 10 && player.y + player.height - 5 > this.y) { gameOver(); }
+            }
+            draw() { ctx.fillStyle = "#fff"; ctx.fillRect(this.x, this.y, this.w, this.h); }
+        }
+
+        const stars = [];
+        function handleStars() {
+            if (Math.random() < 0.3) stars.push({ x: canvas.width, y: Math.random() * canvas.height, size: Math.random() * 2, speed: Math.random() * 2 + 0.5 });
+            for (let i = 0; i < stars.length; i++) {
+                stars[i].x -= stars[i].speed; 
+                ctx.fillStyle = `rgba(255,255,255,${Math.random()})`; 
+                ctx.beginPath(); ctx.arc(stars[i].x, stars[i].y, stars[i].size, 0, Math.PI*2); ctx.fill();
+                if (stars[i].x < 0) stars.splice(i, 1);
+            }
+        }
+
+        const keys = {};
+        window.addEventListener('keydown', e => { 
+            if(e.code === 'Space' || e.code === 'ArrowUp') keys['Space'] = true;
+            if(e.code === 'KeyP' || e.code === 'Escape') togglePause();
+        });
+        window.addEventListener('keyup', e => { if(e.code === 'Space' || e.code === 'ArrowUp') keys['Space'] = false; });
+        document.body.addEventListener('touchstart', e => { if(e.target.tagName !== 'BUTTON') { e.preventDefault(); keys['Click'] = true; } }, {passive:false});
+        document.body.addEventListener('touchend', e => { if(e.target.tagName !== 'BUTTON') { e.preventDefault(); keys['Click'] = false; } }, {passive:false});
+        document.body.addEventListener('mousedown', e => { if(e.target.tagName !== 'BUTTON') keys['Click'] = true; });
+        document.body.addEventListener('mouseup', () => keys['Click'] = false);
+
+        function startGameplay() {
+            uiLayer.style.display = 'block';
+            highScoreLayer.style.display = 'block';
+            pauseBtn.style.display = 'flex';
+            gameActive = true;
+            animate();
+        }
+
+        function togglePause() {
+            if (!gameActive) return;
+            isPaused = !isPaused;
+            if (isPaused) pauseScreen.style.display = 'block';
+            else { pauseScreen.style.display = 'none'; animate(); }
+        }
+
+        function animate() {
+            if (!gameActive || isPaused) return;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            handleStars();
+            
+            ctx.fillStyle = "#fff"; ctx.fillRect(0, canvas.height - groundHeight, canvas.width, 2);
+
+            let spawnRate = Math.floor(120 - (gameSpeed * 2)); if (spawnRate < 45) spawnRate = 45;
+            if (frame % spawnRate === 0) obstacles.push(new Obstacle());
+
+            for (let i = 0; i < obstacles.length; i++) {
+                obstacles[i].update(); obstacles[i].draw();
+            }
+            if (obstacles.length > 0 && obstacles[0].markedForDeletion) {
+                obstacles.shift(); score++; scoreEl.innerText = score;
+                if (score % 20 === 0) gameSpeed += 1; 
+            }
+
+            player.update(); player.draw();
+            frame++;
+            requestAnimationFrame(animate);
+        }
+
+        function gameOver() {
+            gameActive = false;
+            finalScoreEl.innerText = score;
+            gameOverScreen.style.display = 'block';
+            pauseBtn.style.display = 'none';
+            if (score > highScore) { highScore = score; localStorage.setItem('gnHighScore', highScore); bestScoreEl.innerText = highScore; }
+        }
+
+        function resetGame() {
+            gameActive = true; isPaused = false;
+            score = 0; frame = 0; gameSpeed = 6;
+            scoreEl.innerText = "0"; obstacles.length = 0;
+            gameOverScreen.style.display = 'none';
+            pauseBtn.style.display = 'flex';
+            player.y = 0; player.dy = 0;
+            animate();
+        }
+        
+        function backgroundLoop() {
+            if (!gameActive) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                handleStars();
+                requestAnimationFrame(backgroundLoop);
+            }
+        }
+        backgroundLoop();
+
+    </script>
+</body>
+</html>
