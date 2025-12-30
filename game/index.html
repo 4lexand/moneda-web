@@ -206,15 +206,15 @@
         </div>
     </div>
 
-   <script>
-        // --- PEGAR AQUÍ TU TOKEN REAL ---
+<script>
+        // ---------------------------------------------------------
+        // PEGAR AQUÍ TU TOKEN REAL (CA)
         const TOKEN_MINT_ADDRESS = "pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn"; 
         
-        // Pon una cantidad bajita para probar (ej: 1)
+        // Cantidad mínima requerida (ej: 1000)
         const REQUIRED_BALANCE = 1; 
-
         // ---------------------------------------------------------
-        
+
         const walletScreen = document.getElementById('wallet-screen');
         const walletStatus = document.getElementById('wallet-status');
         const uiLayer = document.getElementById('ui-layer');
@@ -242,65 +242,64 @@
                     const resp = await provider.connect();
                     const publicKey = resp.publicKey.toString();
                     
-                    walletStatus.innerHTML = "Checking Balance...";
+                    // Mensaje más elegante mientras carga
+                    walletStatus.innerHTML = "Verifying $GN holdings...";
                     
-                    // LLAMAMOS A LA FUNCIÓN DE VERIFICACIÓN
                     const hasAccess = await checkTokenBalance(publicKey);
 
                     if (hasAccess) {
                         walletStatus.innerHTML = "Access Granted.";
+                        // Efecto suave de salida
                         walletScreen.style.opacity = '0';
                         setTimeout(() => {
                             walletScreen.style.display = 'none';
                             startGameplay(); 
                         }, 800);
                     } else {
-                        // SI FALLA, MUESTRA ESTO
-                        walletStatus.innerHTML = `<span style="color:#ff4444">ACCESS DENIED</span><br>Token not found or connection error.<br>Check alerts.`;
+                        // Mensaje de rechazo limpio
+                        walletStatus.innerHTML = `<span style="color:#ff4444; font-weight:bold;">ACCESS DENIED</span><br><br>You need to hold $GN to play.<br><a href="#" style="color:#fff; text-decoration:underline; font-size:14px; margin-top:10px; display:inline-block;">Buy on Raydium</a>`;
                     }
                 } catch (err) { 
                     console.error(err);
-                    walletStatus.innerHTML = "Connection failed."; 
+                    walletStatus.innerHTML = "Connection cancelled."; 
                 }
             } else {
                 window.open("https://phantom.app/", "_blank");
+                walletStatus.innerHTML = "No wallet found.";
             }
         }
 
         async function checkTokenBalance(walletAddress) {
+            // Si no hay token configurado, deja pasar (Modo Demo)
             if (TOKEN_MINT_ADDRESS === "") return true;
 
             try {
-                // Usamos un endpoint RPC un poco más directo para ver si mejora
-                const connection = new solanaWeb3.Connection("https://api.mainnet-beta.solana.com");
+                // --- EL CAMBIO MÁGICO ESTÁ AQUÍ ---
+                // Usamos un nodo RPC alternativo que no bloquea (extrnode)
+                const connection = new solanaWeb3.Connection("https://solana-mainnet.rpc.extrnode.com");
+                
                 const wallet = new solanaWeb3.PublicKey(walletAddress);
                 const tokenMint = new solanaWeb3.PublicKey(TOKEN_MINT_ADDRESS);
                 
-                // MODO DEBUG: Alerta para saber qué está haciendo
-                console.log("Buscando tokens para:", walletAddress);
-                
-                // Busca cuentas de token
                 const response = await connection.getParsedTokenAccountsByOwner(wallet, { mint: tokenMint });
                 
-                console.log("Respuesta Solana:", response);
-
                 if (response.value.length > 0) {
-                    // Si encuentra la cuenta, leemos el saldo
                     const balance = response.value[0].account.data.parsed.info.tokenAmount.uiAmount;
-                    
-                    // ALERTA DE DIAGNÓSTICO (Te dirá cuánto tienes exactamente)
-                    alert("DIAGNÓSTICO:\nSaldo encontrado: " + balance + " $GN\nSe requiere: " + REQUIRED_BALANCE);
-                    
+                    console.log("Saldo encontrado:", balance);
                     return balance >= REQUIRED_BALANCE;
-                } else {
-                    // ALERTA SI NO ENCUENTRA LA CUENTA
-                    alert("DIAGNÓSTICO: Tu wallet no parece tener una cuenta para este Token. \n¿Estás seguro que es el CA correcto?");
-                    return false;
                 }
+                return false;
             } catch (e) { 
-                // ALERTA SI ES ERROR DE RED
-                alert("DIAGNÓSTICO ERROR: " + e.message + "\n\nPosiblemente la red de Solana está saturada.");
-                return false; 
+                console.error("Error de red:", e);
+                // Si falla la red alternativa, intentamos un último recurso (la oficial)
+                try {
+                     const connectionBackup = new solanaWeb3.Connection(solanaWeb3.clusterApiUrl('mainnet-beta'));
+                     const responseBackup = await connectionBackup.getParsedTokenAccountsByOwner(new solanaWeb3.PublicKey(walletAddress), { mint: new solanaWeb3.PublicKey(TOKEN_MINT_ADDRESS) });
+                     if (responseBackup.value.length > 0) return responseBackup.value[0].account.data.parsed.info.tokenAmount.uiAmount >= REQUIRED_BALANCE;
+                } catch(e2) {
+                    return false; // Si ambas fallan, bloqueamos por seguridad.
+                }
+                return false;
             }
         }
 
