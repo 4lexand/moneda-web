@@ -206,11 +206,15 @@
         </div>
     </div>
 
-    <script>
-        // PEGAR AQUÍ TU TOKEN CUANDO LO TENGAS
+   <script>
+        // --- PEGAR AQUÍ TU TOKEN REAL ---
         const TOKEN_MINT_ADDRESS = "pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn"; 
-        const REQUIRED_BALANCE = 100; 
+        
+        // Pon una cantidad bajita para probar (ej: 1)
+        const REQUIRED_BALANCE = 1; 
 
+        // ---------------------------------------------------------
+        
         const walletScreen = document.getElementById('wallet-screen');
         const walletStatus = document.getElementById('wallet-status');
         const uiLayer = document.getElementById('ui-layer');
@@ -228,16 +232,19 @@
 
         async function connectWallet() {
             if (window.location.protocol === 'file:') {
-                alert("ERROR: Las wallets no funcionan en local. Sube a GitHub."); return;
+                alert("ERROR: Sube a GitHub para probar."); return;
             }
             const provider = getProvider();
+            
             if (provider) {
                 try {
                     walletStatus.innerHTML = "Connecting...";
                     const resp = await provider.connect();
                     const publicKey = resp.publicKey.toString();
                     
-                    walletStatus.innerHTML = "Checking $GN balance...";
+                    walletStatus.innerHTML = "Checking Balance...";
+                    
+                    // LLAMAMOS A LA FUNCIÓN DE VERIFICACIÓN
                     const hasAccess = await checkTokenBalance(publicKey);
 
                     if (hasAccess) {
@@ -248,28 +255,56 @@
                             startGameplay(); 
                         }, 800);
                     } else {
-                        walletStatus.innerHTML = `<span style="color:#ff4444">Access Denied.</span><br>You need $GN to play.`;
+                        // SI FALLA, MUESTRA ESTO
+                        walletStatus.innerHTML = `<span style="color:#ff4444">ACCESS DENIED</span><br>Token not found or connection error.<br>Check alerts.`;
                     }
-                } catch (err) { walletStatus.innerHTML = "Connection failed."; }
+                } catch (err) { 
+                    console.error(err);
+                    walletStatus.innerHTML = "Connection failed."; 
+                }
             } else {
                 window.open("https://phantom.app/", "_blank");
-                walletStatus.innerHTML = "No wallet found.";
             }
         }
 
         async function checkTokenBalance(walletAddress) {
             if (TOKEN_MINT_ADDRESS === "") return true;
+
             try {
-                const connection = new solanaWeb3.Connection(solanaWeb3.clusterApiUrl('mainnet-beta'));
+                // Usamos un endpoint RPC un poco más directo para ver si mejora
+                const connection = new solanaWeb3.Connection("https://api.mainnet-beta.solana.com");
                 const wallet = new solanaWeb3.PublicKey(walletAddress);
                 const tokenMint = new solanaWeb3.PublicKey(TOKEN_MINT_ADDRESS);
+                
+                // MODO DEBUG: Alerta para saber qué está haciendo
+                console.log("Buscando tokens para:", walletAddress);
+                
+                // Busca cuentas de token
                 const response = await connection.getParsedTokenAccountsByOwner(wallet, { mint: tokenMint });
-                if (response.value.length > 0) return response.value[0].account.data.parsed.info.tokenAmount.uiAmount >= REQUIRED_BALANCE;
-                return false;
-            } catch (e) { return false; }
+                
+                console.log("Respuesta Solana:", response);
+
+                if (response.value.length > 0) {
+                    // Si encuentra la cuenta, leemos el saldo
+                    const balance = response.value[0].account.data.parsed.info.tokenAmount.uiAmount;
+                    
+                    // ALERTA DE DIAGNÓSTICO (Te dirá cuánto tienes exactamente)
+                    alert("DIAGNÓSTICO:\nSaldo encontrado: " + balance + " $GN\nSe requiere: " + REQUIRED_BALANCE);
+                    
+                    return balance >= REQUIRED_BALANCE;
+                } else {
+                    // ALERTA SI NO ENCUENTRA LA CUENTA
+                    alert("DIAGNÓSTICO: Tu wallet no parece tener una cuenta para este Token. \n¿Estás seguro que es el CA correcto?");
+                    return false;
+                }
+            } catch (e) { 
+                // ALERTA SI ES ERROR DE RED
+                alert("DIAGNÓSTICO ERROR: " + e.message + "\n\nPosiblemente la red de Solana está saturada.");
+                return false; 
+            }
         }
 
-        // GAME ENGINE
+        // --- MOTOR DEL JUEGO (GAME ENGINE) ---
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const scoreEl = document.getElementById('score');
@@ -287,7 +322,6 @@
         function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
         resizeCanvas(); window.addEventListener('resize', resizeCanvas);
 
-        // ESTRELLAS INSTANTÁNEAS
         const stars = [];
         for(let i=0; i<40; i++) { 
              stars.push({ x: Math.random() * canvas.width, y: Math.random() * canvas.height, size: Math.random() * 2, speed: Math.random() * 2 + 0.5 });
