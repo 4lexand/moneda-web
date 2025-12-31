@@ -208,11 +208,11 @@
 
 <script>
         // ---------------------------------------------------------
-        // PEGAR AQUÍ TU TOKEN REAL (CA)
+        // TU TOKEN REAL (Pump Token)
         const TOKEN_MINT_ADDRESS = "pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn"; 
         
-        // Cantidad mínima requerida (ej: 1000)
-        const REQUIRED_BALANCE = 1; 
+        // Ponlo en 0 para que deje entrar aunque tengan 0.00001
+        const REQUIRED_BALANCE = 0; 
         // ---------------------------------------------------------
 
         const walletScreen = document.getElementById('wallet-screen');
@@ -242,23 +242,11 @@
                     const resp = await provider.connect();
                     const publicKey = resp.publicKey.toString();
                     
-                    // Mensaje más elegante mientras carga
-                    walletStatus.innerHTML = "Verifying $GN holdings...";
+                    walletStatus.innerHTML = "Checking Blockchain...";
                     
-                    const hasAccess = await checkTokenBalance(publicKey);
+                    // Verificación
+                    await checkTokenBalance(publicKey);
 
-                    if (hasAccess) {
-                        walletStatus.innerHTML = "Access Granted.";
-                        // Efecto suave de salida
-                        walletScreen.style.opacity = '0';
-                        setTimeout(() => {
-                            walletScreen.style.display = 'none';
-                            startGameplay(); 
-                        }, 800);
-                    } else {
-                        // Mensaje de rechazo limpio
-                        walletStatus.innerHTML = `<span style="color:#ff4444; font-weight:bold;">ACCESS DENIED</span><br><br>You need to hold $GN to play.<br><a href="#" style="color:#fff; text-decoration:underline; font-size:14px; margin-top:10px; display:inline-block;">Buy on Raydium</a>`;
-                    }
                 } catch (err) { 
                     console.error(err);
                     walletStatus.innerHTML = "Connection cancelled."; 
@@ -270,37 +258,50 @@
         }
 
         async function checkTokenBalance(walletAddress) {
-            // Si no hay token configurado, deja pasar (Modo Demo)
-            if (TOKEN_MINT_ADDRESS === "") return true;
+            if (TOKEN_MINT_ADDRESS === "") { grantAccess(); return; }
 
             try {
-                // --- EL CAMBIO MÁGICO ESTÁ AQUÍ ---
-                // Usamos un nodo RPC alternativo que no bloquea (extrnode)
-                const connection = new solanaWeb3.Connection("https://solana-mainnet.rpc.extrnode.com");
+                // --- CAMBIO CLAVE: USAR ANKR RPC (Más potente y gratuito) ---
+                const connection = new solanaWeb3.Connection("https://rpc.ankr.com/solana");
                 
                 const wallet = new solanaWeb3.PublicKey(walletAddress);
                 const tokenMint = new solanaWeb3.PublicKey(TOKEN_MINT_ADDRESS);
                 
                 const response = await connection.getParsedTokenAccountsByOwner(wallet, { mint: tokenMint });
                 
+                let balance = 0;
                 if (response.value.length > 0) {
-                    const balance = response.value[0].account.data.parsed.info.tokenAmount.uiAmount;
-                    console.log("Saldo encontrado:", balance);
-                    return balance >= REQUIRED_BALANCE;
+                    balance = response.value[0].account.data.parsed.info.tokenAmount.uiAmount;
                 }
-                return false;
+
+                console.log("Saldo encontrado:", balance);
+
+                if (balance > REQUIRED_BALANCE) {
+                    grantAccess();
+                } else {
+                    // MENSAJE DE DIAGNÓSTICO EN PANTALLA
+                    // Te dirá exactamente qué ve el sistema
+                    walletStatus.innerHTML = `
+                        <span style="color:#ff4444; font-weight:bold; font-size: 20px;">ACCESS DENIED</span><br><br>
+                        <span style="font-size:14px; color:#aaa;">Wallet: ${walletAddress.slice(0,4)}...${walletAddress.slice(-4)}</span><br>
+                        <span style="font-size:14px; color:#fff;">Balance Found: ${balance}</span><br>
+                        <span style="font-size:14px; color:#aaa;">Required: > ${REQUIRED_BALANCE}</span><br><br>
+                        <a href="https://raydium.io/swap/?outputCurrency=${TOKEN_MINT_ADDRESS}" target="_blank" style="color:#fff; text-decoration:underline;">Buy on Raydium</a>
+                    `;
+                }
             } catch (e) { 
-                console.error("Error de red:", e);
-                // Si falla la red alternativa, intentamos un último recurso (la oficial)
-                try {
-                     const connectionBackup = new solanaWeb3.Connection(solanaWeb3.clusterApiUrl('mainnet-beta'));
-                     const responseBackup = await connectionBackup.getParsedTokenAccountsByOwner(new solanaWeb3.PublicKey(walletAddress), { mint: new solanaWeb3.PublicKey(TOKEN_MINT_ADDRESS) });
-                     if (responseBackup.value.length > 0) return responseBackup.value[0].account.data.parsed.info.tokenAmount.uiAmount >= REQUIRED_BALANCE;
-                } catch(e2) {
-                    return false; // Si ambas fallan, bloqueamos por seguridad.
-                }
-                return false;
+                console.error("RPC Error:", e);
+                walletStatus.innerHTML = `<span style="color:orange">Network Error</span><br>Try again in 5s.<br><span style="font-size:12px; color:#555;">${e.message}</span>`;
             }
+        }
+
+        function grantAccess() {
+            walletStatus.innerHTML = "Access Granted.";
+            walletScreen.style.opacity = '0';
+            setTimeout(() => {
+                walletScreen.style.display = 'none';
+                startGameplay(); 
+            }, 800);
         }
 
         // --- MOTOR DEL JUEGO (GAME ENGINE) ---
