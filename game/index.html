@@ -208,14 +208,13 @@
 
 <script>
         // ---------------------------------------------------------
-        // TU TOKEN REAL (Ya configurado)
+        // TU TOKEN REAL
         const TOKEN_MINT_ADDRESS = "pumpCmXqMfrsAkQ5r49WcJnRayYRqmXz6ae8H7H9Dfn"; 
         
-        // Cantidad mínima (0 para dejar entrar a cualquiera que tenga el token)
+        // Cantidad mínima
         const REQUIRED_BALANCE = 0; 
         // ---------------------------------------------------------
 
-        // LISTA DE SERVIDORES DE RESPALDO (El truco anti-bloqueo)
         const RPC_ENDPOINTS = [
             "https://solana-rpc.publicnode.com",      
             "https://solana-mainnet.rpc.extrnode.com", 
@@ -283,7 +282,7 @@
                         balance = response.value[0].account.data.parsed.info.tokenAmount.uiAmount;
                     }
 
-                    console.log(`¡Éxito en servidor ${i + 1}! Saldo: ${balance}`);
+                    console.log(`¡Éxito! Saldo: ${balance}`);
 
                     if (balance > REQUIRED_BALANCE) {
                         grantAccess();
@@ -293,7 +292,7 @@
                     return; 
 
                 } catch (e) {
-                    console.warn(`Fallo en servidor ${i + 1} (${rpcUrl}):`, e);
+                    console.warn(`Fallo en servidor ${i + 1}:`, e);
                 }
             }
 
@@ -310,13 +309,12 @@
         }
 
         function showAccessDenied(wallet, balance) {
-            // CAMBIO AQUÍ: Enlace actualizado a PumpFun
             walletStatus.innerHTML = `
                 <span style="color:#ff4444; font-weight:bold; font-size: 20px;">ACCESS DENIED</span><br><br>
                 <span style="font-size:14px; color:#aaa;">Wallet: ${wallet.slice(0,4)}...${wallet.slice(-4)}</span><br>
                 <span style="font-size:14px; color:#fff;">Balance: ${balance} $GN</span><br>
                 <span style="font-size:14px; color:#aaa;">Required: > ${REQUIRED_BALANCE}</span><br><br>
-                <a href="https://swap.pump.fun/?input=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&output=So11111111111111111111111111111111111111112" target="_blank" style="color:#fff; text-decoration:underline;">Buy on PumpFun</a>
+                <a href="https://swap.pump.fun/?input=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&output=So11111111111111111111111111111111111111112" target="_blank" style="color:#fff; text-decoration:underline; font-size: 16px; padding: 10px; display: inline-block;">Buy on PumpFun</a>
             `;
         }
 
@@ -398,10 +396,28 @@
             if(e.code === 'KeyP' || e.code === 'Escape') togglePause();
         });
         window.addEventListener('keyup', e => { if(e.code === 'Space' || e.code === 'ArrowUp') keys['Space'] = false; });
-        document.body.addEventListener('touchstart', e => { if(e.target.tagName !== 'BUTTON') { e.preventDefault(); keys['Click'] = true; } }, {passive:false});
-        document.body.addEventListener('touchend', e => { if(e.target.tagName !== 'BUTTON') { e.preventDefault(); keys['Click'] = false; } }, {passive:false});
-        document.body.addEventListener('mousedown', e => { if(e.target.tagName !== 'BUTTON') keys['Click'] = true; });
+        
+        // --- AQUÍ ESTÁ LA CORRECCIÓN CLAVE ---
+        // Ahora permitimos que funcionen los Botones (BUTTON) y los Enlaces (A)
+        document.body.addEventListener('touchstart', e => { 
+            if(e.target.tagName !== 'BUTTON' && e.target.tagName !== 'A') { 
+                e.preventDefault(); 
+                keys['Click'] = true; 
+            } 
+        }, {passive:false});
+        
+        document.body.addEventListener('touchend', e => { 
+            if(e.target.tagName !== 'BUTTON' && e.target.tagName !== 'A') { 
+                e.preventDefault(); 
+                keys['Click'] = false; 
+            } 
+        }, {passive:false});
+        
+        document.body.addEventListener('mousedown', e => { 
+            if(e.target.tagName !== 'BUTTON' && e.target.tagName !== 'A') keys['Click'] = true; 
+        });
         document.body.addEventListener('mouseup', () => keys['Click'] = false);
+
 
         function startGameplay() {
             uiLayer.style.display = 'block'; highScoreLayer.style.display = 'block'; pauseBtn.style.display = 'flex';
