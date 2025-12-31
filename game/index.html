@@ -217,10 +217,10 @@
 
         // LISTA DE SERVIDORES DE RESPALDO (El truco anti-bloqueo)
         const RPC_ENDPOINTS = [
-            "https://solana-rpc.publicnode.com",      // Opción 1: Muy permisiva
-            "https://solana-mainnet.rpc.extrnode.com", // Opción 2: Estable
-            "https://api.mainnet-beta.solana.com",     // Opción 3: Oficial (A veces estricta)
-            "https://rpc.ankr.com/solana"              // Opción 4: Respaldo
+            "https://solana-rpc.publicnode.com",      
+            "https://solana-mainnet.rpc.extrnode.com", 
+            "https://api.mainnet-beta.solana.com",     
+            "https://rpc.ankr.com/solana"              
         ];
 
         const walletScreen = document.getElementById('wallet-screen');
@@ -252,7 +252,6 @@
                     
                     walletStatus.innerHTML = "Verifying on Blockchain...";
                     
-                    // Iniciamos la verificación inteligente
                     await checkTokenBalanceWithRetry(publicKey);
 
                 } catch (err) { 
@@ -265,7 +264,6 @@
             }
         }
 
-        // FUNCIÓN INTELIGENTE: Prueba servidores uno por uno hasta que uno funcione
         async function checkTokenBalanceWithRetry(walletAddress) {
             if (TOKEN_MINT_ADDRESS === "") { grantAccess(); return; }
 
@@ -278,7 +276,6 @@
                     const wallet = new solanaWeb3.PublicKey(walletAddress);
                     const tokenMint = new solanaWeb3.PublicKey(TOKEN_MINT_ADDRESS);
                     
-                    // Intentamos leer el saldo
                     const response = await connection.getParsedTokenAccountsByOwner(wallet, { mint: tokenMint });
                     
                     let balance = 0;
@@ -293,15 +290,13 @@
                     } else {
                         showAccessDenied(walletAddress, balance);
                     }
-                    return; // Si llegamos aquí, funcionó, así que terminamos la función.
+                    return; 
 
                 } catch (e) {
                     console.warn(`Fallo en servidor ${i + 1} (${rpcUrl}):`, e);
-                    // Si falla, el bucle "for" continuará automáticamente con el siguiente servidor
                 }
             }
 
-            // Si llegamos aquí, es que fallaron los 4 servidores
             walletStatus.innerHTML = `<span style="color:orange">Network Busy</span><br>All servers are busy.<br>Try again in 10s.`;
         }
 
@@ -315,12 +310,13 @@
         }
 
         function showAccessDenied(wallet, balance) {
+            // CAMBIO AQUÍ: Enlace actualizado a PumpFun
             walletStatus.innerHTML = `
                 <span style="color:#ff4444; font-weight:bold; font-size: 20px;">ACCESS DENIED</span><br><br>
                 <span style="font-size:14px; color:#aaa;">Wallet: ${wallet.slice(0,4)}...${wallet.slice(-4)}</span><br>
                 <span style="font-size:14px; color:#fff;">Balance: ${balance} $GN</span><br>
                 <span style="font-size:14px; color:#aaa;">Required: > ${REQUIRED_BALANCE}</span><br><br>
-                <a href="https://raydium.io/swap/?outputCurrency=${TOKEN_MINT_ADDRESS}" target="_blank" style="color:#fff; text-decoration:underline;">Buy on Raydium</a>
+                <a href="https://swap.pump.fun/?input=EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v&output=So11111111111111111111111111111111111111112" target="_blank" style="color:#fff; text-decoration:underline;">Buy on PumpFun</a>
             `;
         }
 
